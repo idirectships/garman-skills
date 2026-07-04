@@ -1,0 +1,210 @@
+topic: post-mortem-decisions
+title: "Post-Mortem Review Decisions"
+
+questions:
+  - title: "How do we classify the severity of this incident?"
+    tag: "severity"
+    teaching: |
+      Incident severity determines the scope of the post-mortem process, who needs to be involved, and what level of remediation is required. Over-classifying wastes engineering time on bureaucratic process. Under-classifying misses systemic risk.
+
+      Severity is about business impact and blast radius — not just technical complexity. A 30-second API blip that hit 0 users is lower severity than a 2-minute degradation that silently corrupted 200 records.
+    input_type: radio
+    options:
+      - label: "SEV-1 — Customer-facing outage or data loss"
+        value: "SEV1"
+        pros:
+          - "Forces full post-mortem with 5-whys"
+          - "Escalates to leadership automatically"
+          - "Gets remediation SLA (2 weeks)"
+        cons:
+          - "Heavy process overhead"
+          - "Engineering distraction during recovery"
+      - label: "SEV-2 — Significant degradation, no data loss"
+        value: "SEV2"
+        recommended: true
+        pros:
+          - "Balanced process: post-mortem required but lighter"
+          - "Action items tracked without leadership escalation"
+        cons:
+          - "May under-weight systemic issues"
+      - label: "SEV-3 — Minor degradation or near-miss"
+        value: "SEV3"
+        pros:
+          - "Minimal process, fast resolution"
+        cons:
+          - "Near-misses often recur if not documented"
+          - "No formal remediation tracking"
+
+  - title: "Who owns writing the post-mortem document?"
+    tag: "ownership"
+    teaching: |
+      Post-mortem authorship determines whose mental model of the incident gets preserved. The on-call engineer has the most operational detail but often the least time. A designated writer role produces cleaner docs but risks losing important context through the retelling gap.
+
+      The author is NOT the person who caused the incident. Post-mortems are blameless — the author is the incident coordinator or lead responder.
+    input_type: radio
+    options:
+      - label: "On-call engineer who responded"
+        value: "oncall"
+        pros:
+          - "Firsthand knowledge of timeline"
+          - "No retelling gap"
+        cons:
+          - "Usually exhausted post-incident"
+          - "May miss systemic context"
+      - label: "Engineering manager of affected team"
+        value: "manager"
+        recommended: true
+        pros:
+          - "Has cross-team context"
+          - "Can identify systemic vs one-off patterns"
+        cons:
+          - "Not in the weeds during incident"
+      - label: "Designated post-mortem coordinator (rotation)"
+        value: "coordinator"
+        pros:
+          - "Consistent format across incidents"
+          - "No team bias"
+        cons:
+          - "Requires coordinator program to exist"
+          - "Context loss from non-participants"
+
+  - title: "Which remediation categories should we track action items under?"
+    tag: "remediation"
+    teaching: |
+      Action items without categories drift into a backlog and never ship. Categorizing remediation items helps route them to the right owners and prioritize them against other work. Not all categories apply to every incident — select what fits this specific case.
+
+      Common pitfall: marking everything as "monitoring improvement" when the real issue was deployment process or capacity planning.
+    input_type: checkbox
+    options:
+      - label: "Detection — improve alerting so we catch this faster"
+        value: "detection"
+        recommended: true
+        pros:
+          - "Directly reduces MTTD (mean time to detect)"
+        cons:
+          - "Alert fatigue if overdone"
+      - label: "Mitigation — add circuit breakers or fallback paths"
+        value: "mitigation"
+        pros:
+          - "Reduces blast radius of future occurrence"
+        cons:
+          - "Adds complexity to the system"
+      - label: "Deployment process — gate or slow-roll this change type"
+        value: "deploy"
+        pros:
+          - "Prevents recurrence via process rather than code"
+        cons:
+          - "Slows velocity if gates are too broad"
+      - label: "Capacity planning — pre-provision or add headroom"
+        value: "capacity"
+        pros:
+          - "Directly addresses resource-based failures"
+        cons:
+          - "Costs money without shipping features"
+      - label: "Documentation — update runbooks or escalation paths"
+        value: "docs"
+        pros:
+          - "Low cost, high leverage for next responder"
+        cons:
+          - "Docs go stale if not maintained"
+
+  - title: "What is the target timeline for completing all action items?"
+    tag: "timeline"
+    teaching: |
+      Without a deadline, post-mortem action items sit in JIRA forever. Too-short deadlines create false urgency and cause half-baked fixes. A 2-4 week window balances speed with thoroughness for most SEV-2 incidents.
+
+      The timeline should be set BEFORE the meeting ends — not retroactively applied. Items not completed by the deadline get escalated automatically.
+    input_type: radio
+    options:
+      - label: "1 week — incident is still hot, fix fast"
+        value: "1w"
+        pros:
+          - "High urgency signals to team"
+        cons:
+          - "Unrealistic for architectural changes"
+      - label: "2 weeks — standard sprint window"
+        value: "2w"
+        recommended: true
+        pros:
+          - "Fits most sprint cadences"
+          - "Balances urgency with realism"
+        cons:
+          - "Can conflict with existing sprint commitments"
+      - label: "4 weeks — complex systemic fix needed"
+        value: "4w"
+        pros:
+          - "Allows for proper design and review"
+        cons:
+          - "Risk of incident fading from memory"
+
+  - title: "Should we send a public status page update?"
+    tag: "comms"
+    teaching: |
+      Public communication builds trust if done proactively and accurately. Sending a status update after a user-reported incident is reactive and appears defensive. Not sending one for a visible outage looks like a cover-up.
+
+      The bar: would a customer reading our status page be confused by a gap in the incident timeline? If yes, post an update.
+    input_type: radio
+    options:
+      - label: "Yes — customers may have noticed degradation"
+        value: "yes"
+        recommended: true
+        pros:
+          - "Proactive transparency builds trust"
+          - "Reduces inbound support volume"
+        cons:
+          - "May escalate concern for incidents that resolved quickly"
+      - label: "No — internal only, no customer impact detected"
+        value: "no"
+        pros:
+          - "Avoids unnecessary concern"
+        cons:
+          - "If customers DID notice, appears evasive in retrospect"
+      - label: "Uncertain — check support ticket volume first"
+        value: "check"
+        pros:
+          - "Data-driven decision"
+        cons:
+          - "Delays comms decision"
+
+  - title: "What does the 5-why analysis identify as root cause tier?"
+    tag: "root-cause"
+    teaching: |
+      The 5-why analysis is meant to surface the SYSTEMIC root cause, not stop at the proximate cause. If every post-mortem concludes with "engineer made a mistake," the 5-why analysis is not going deep enough.
+
+      Root cause tiers: Tier 1 = code bug (proximate). Tier 2 = missing test/review gate. Tier 3 = process gap. Tier 4 = organizational or incentive misalignment. Most actionable post-mortems reach Tier 2 or 3.
+    input_type: radio
+    options:
+      - label: "Tier 1 — specific code bug (proximate cause only)"
+        value: "T1"
+        pros:
+          - "Straightforward fix"
+        cons:
+          - "May recur via a different code path"
+      - label: "Tier 2 — missing test, lint, or review gate"
+        value: "T2"
+        recommended: true
+        pros:
+          - "Prevents whole class of similar bugs"
+          - "Most teams can implement gates quickly"
+        cons:
+          - "May slow CI if gates are too broad"
+      - label: "Tier 3 — process or runbook gap"
+        value: "T3"
+        pros:
+          - "Addresses repeating patterns across teams"
+        cons:
+          - "Process changes require buy-in to stick"
+      - label: "Tier 4 — organizational or incentive misalignment"
+        value: "T4"
+        pros:
+          - "Highest leverage if addressed"
+        cons:
+          - "Requires leadership involvement"
+
+  - title: "Any additional context, blockers, or open questions?"
+    tag: "open"
+    teaching: |
+      This section captures anything not covered by the structured questions above. Common things worth noting: dependencies on other teams, external vendors involved, regulatory considerations, or questions you want the AI to address in the next iteration workbook.
+    input_type: textarea
+    rows: 8
+    placeholder: "e.g. 'Action item X depends on the database team being available.' Or: 'Should we page the CTO for SEV-1 incidents that resolve within 10 minutes?'"

@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Post-Mortem Review Decisions</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg-base:#1C1917;--bg-surface:#1E1B18;--bg-elevated:#2D2926;--bg-highlight:#312e2b;
+  --text-primary:#FAFAF9;--text-muted:#A8A29E;--text-disabled:#57534E;
+  --success:#22C55E;--warning:#F59E0B;--danger:#EF4444;--info:#3B82F6;
+  --success-subtle:#0A2318;--warning-subtle:#2D1F08;--danger-subtle:#2D0A0A;
+  --border-subtle:#292524;--border-default:#44403C;
+  --amber:#F59E0B;--gold:#D4A574;
+  --font:system-ui,-apple-system,"Helvetica Neue",sans-serif;
+  --mono:"SF Mono","JetBrains Mono","Fira Code",ui-monospace,monospace;
+  --sidebar:220px;--header:52px;
+}
+html{scroll-behavior:smooth}
+body{background:var(--bg-base);color:var(--text-primary);font-family:var(--font);font-size:14px;line-height:1.6;min-height:100vh;display:flex;flex-direction:column}
+
+/* Sticky header */
+.sticky-header{position:sticky;top:0;z-index:100;background:var(--bg-surface);border-bottom:1px solid var(--border-subtle);height:var(--header);display:flex;align-items:center;justify-content:space-between;padding:0 20px;gap:12px}
+.sticky-header h1{font-size:15px;font-weight:600;white-space:nowrap}
+.progress-wrap{display:flex;align-items:center;gap:10px;flex-shrink:0}
+.progress-label{font-size:12px;color:var(--text-muted)}
+.progress-bar{width:160px;height:6px;background:var(--bg-elevated);border-radius:3px;overflow:hidden}
+.progress-fill{height:100%;background:var(--amber);border-radius:3px;transition:width .3s ease;width:0%}
+.progress-pct{font-size:12px;color:var(--amber);font-weight:700;min-width:36px;text-align:right}
+.progress-count{display:none}
+
+/* Layout */
+.layout{display:flex;flex:1}
+
+/* Sidebar TOC */
+.toc{width:var(--sidebar);flex-shrink:0;position:sticky;top:var(--header);height:calc(100vh - var(--header));overflow-y:auto;background:var(--bg-surface);border-right:1px solid var(--border-subtle);padding:16px 0}
+.toc-title{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-disabled);padding:0 16px 12px}
+.toc a{display:flex;align-items:center;gap:8px;padding:6px 16px;font-size:12px;color:var(--text-muted);text-decoration:none;border-left:2px solid transparent;transition:color .15s,border-color .15s;line-height:1.4}
+.toc a:hover{color:var(--text-primary);border-left-color:var(--border-default)}
+.toc a.active{color:var(--amber);border-left-color:var(--amber)}
+.toc a.done{color:var(--success)}
+.toc a.done .q-num{color:var(--success)}
+.toc .q-num{font-weight:700;font-size:11px;min-width:20px;color:var(--amber)}
+.toc-sep{height:1px;background:var(--border-subtle);margin:8px 16px}
+
+/* Main content */
+.main{flex:1;padding:32px 40px 80px;max-width:920px}
+.page-header{margin-bottom:36px}
+.page-tag{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--amber);background:var(--warning-subtle);border:1px solid rgba(245,158,11,.2);border-radius:4px;padding:3px 8px;margin-bottom:10px}
+.page-title{font-size:26px;font-weight:700;color:var(--text-primary);margin-bottom:8px;line-height:1.2}
+.page-subtitle{font-size:15px;color:var(--text-muted);line-height:1.6;max-width:680px}
+
+/* Question section */
+section.question{border:1px solid var(--border-subtle);border-radius:10px;background:var(--bg-surface);margin-bottom:28px;overflow:hidden}
+.q-header{padding:18px 22px 14px;border-bottom:1px solid var(--border-subtle);display:flex;align-items:flex-start;gap:14px}
+.q-num{flex-shrink:0;width:34px;height:34px;border-radius:50%;background:var(--warning-subtle);border:1.5px solid rgba(245,158,11,.3);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--amber)}
+.q-meta{flex:1}
+.q-title{font-size:15px;font-weight:600;color:var(--text-primary);margin-bottom:4px;line-height:1.3}
+.q-tag{display:inline-flex;align-items:center;font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;padding:2px 8px;border-radius:4px;margin-top:4px;background:var(--bg-elevated);color:var(--text-muted)}
+.q-tag.multi{background:rgba(59,130,246,.12);color:#60a5fa}
+.q-tag.radio{background:rgba(34,197,94,.1);color:#4ade80}
+.q-tag.open{background:rgba(245,158,11,.1);color:var(--amber)}
+.q-body{padding:22px}
+
+/* Teaching / info box */
+.teaching{background:var(--bg-elevated);border:1px solid var(--border-subtle);border-left:3px solid var(--info);border-radius:6px;padding:14px 16px;margin-bottom:18px;font-size:13px;color:var(--text-muted);line-height:1.7}
+.teaching strong{color:var(--text-primary)}
+.teaching p{margin-bottom:8px}
+.teaching p:last-child{margin-bottom:0}
+.teaching code{background:var(--bg-base);padding:1px 5px;border-radius:3px;font-family:var(--mono);font-size:11px;color:var(--text-muted)}
+
+/* SVG diagrams */
+.svg-wrap{margin:14px 0 6px;display:flex;justify-content:center;background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:8px;padding:18px;overflow-x:auto}
+.svg-caption{font-size:11px;color:var(--text-disabled);text-align:center;margin-top:5px;margin-bottom:14px}
+
+/* Radio options */
+.options-list{display:flex;flex-direction:column;gap:10px;margin-bottom:14px}
+.option-item{border:1.5px solid var(--border-subtle);border-radius:8px;overflow:hidden;cursor:pointer;transition:border-color .15s}
+.option-item:hover{border-color:var(--border-default)}
+.option-item.recommended{border-color:rgba(245,158,11,.4);background:rgba(245,158,11,.03)}
+.option-item input[type=radio]{display:none}
+.option-label-wrap{display:flex;align-items:flex-start;padding:13px 15px;gap:12px;cursor:pointer;width:100%}
+.option-dot{flex-shrink:0;width:17px;height:17px;border-radius:50%;border:2px solid var(--border-default);margin-top:2px;transition:border-color .15s,background .15s;position:relative}
+.option-item.checked .option-dot,.option-item.recommended.checked .option-dot{border-color:var(--amber);background:var(--amber)}
+.option-item.checked .option-dot::after{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:5px;height:5px;border-radius:50%;background:var(--bg-base)}
+.option-text{flex:1}
+.option-title{font-size:13px;font-weight:600;color:var(--text-primary);display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap}
+.recommended-badge,.rec-badge{font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;background:var(--warning-subtle);color:var(--amber);border:1px solid rgba(245,158,11,.25);border-radius:3px;padding:2px 5px;flex-shrink:0}
+.option-desc{font-size:12px;color:var(--text-muted);line-height:1.5;margin-bottom:6px}
+
+/* Pros / cons in details */
+details{margin-top:8px;border:1px solid var(--border-subtle);border-radius:5px;overflow:hidden}
+details summary{padding:6px 10px;cursor:pointer;font-size:11px;font-weight:600;color:var(--text-muted);user-select:none;background:var(--bg-elevated)}
+details summary:hover{color:var(--text-primary)}
+details[open] summary{border-bottom:1px solid var(--border-subtle)}
+.pros-cons{padding:10px;display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.pros-cons h4{font-size:10px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px}
+.pros h4{color:var(--success)}
+.cons h4{color:var(--danger)}
+ul.pros,ul.cons{padding-left:14px;font-size:11px;color:var(--text-muted);list-style:none}
+ul.pros li{padding-left:12px;position:relative;margin-bottom:2px}
+ul.pros li::before{content:'+';position:absolute;left:0;color:var(--success);font-weight:700}
+ul.cons li{padding-left:12px;position:relative;margin-bottom:2px}
+ul.cons li::before{content:'-';position:absolute;left:0;color:var(--danger);font-weight:700}
+
+/* Checkboxes */
+.checkbox-group{margin-bottom:14px}
+.checkbox-grid{display:flex;flex-direction:column;gap:8px}
+.checkbox-item{display:flex;align-items:flex-start;gap:10px;padding:10px 13px;border:1.5px solid var(--border-subtle);border-radius:7px;cursor:pointer;transition:border-color .15s}
+.checkbox-item:hover{border-color:var(--border-default)}
+.checkbox-item.recommended{border-color:rgba(245,158,11,.35);background:rgba(245,158,11,.03)}
+.checkbox-item input[type=checkbox]{display:none}
+.check-box{flex-shrink:0;width:16px;height:16px;border:2px solid var(--border-default);border-radius:3px;margin-top:2px;transition:all .15s;position:relative}
+.checkbox-item.checked .check-box{background:var(--amber);border-color:var(--amber)}
+.checkbox-item.checked .check-box::after{content:'';position:absolute;top:2px;left:5px;width:4px;height:8px;border:2px solid var(--bg-base);border-top:none;border-left:none;transform:rotate(45deg)}
+.check-label{font-size:13px;color:var(--text-primary);font-weight:500;margin-bottom:2px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.check-desc{font-size:11px;color:var(--text-muted);line-height:1.5}
+
+/* Textareas */
+.textarea-field{width:100%;background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:6px;color:var(--text-primary);font-family:var(--font);font-size:13px;padding:10px 12px;resize:vertical;min-height:64px;line-height:1.6;transition:border-color .15s}
+.textarea-field:focus{outline:none;border-color:var(--amber)}
+.textarea-field::placeholder{color:var(--text-disabled)}
+.textarea-field.ask-back{min-height:72px;border-color:rgba(59,130,246,.3);background:rgba(59,130,246,.04)}
+.textarea-field.ask-back:focus{border-color:#60a5fa}
+
+/* Ask-back / notes blocks */
+.askback-block{margin-top:18px;border-top:1px solid var(--border-subtle);padding-top:14px}
+.notes-block{margin-top:12px}
+.field-label{display:block;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px}
+.field-label.askback-label{color:#60a5fa}
+.ask-tag{display:inline-block;background:rgba(59,130,246,.15);color:#60a5fa;border-radius:3px;padding:1px 5px;font-size:9px;margin-left:4px}
+
+/* Section divider */
+.divider{height:1px;background:var(--border-subtle);margin:18px 0}
+.section-label{font-size:10px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px;margin-top:18px}
+
+/* Paste-back section */
+.pasteback-section{border:1px solid rgba(245,158,11,.25);border-radius:10px;background:var(--bg-surface);padding:22px;margin-top:36px}
+.pasteback-title{font-size:15px;font-weight:700;color:var(--text-primary);margin-bottom:6px}
+.pasteback-sub{font-size:13px;color:var(--text-muted);margin-bottom:14px}
+.pasteback-actions{display:flex;gap:10px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:6px;border:none;border-radius:6px;padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font);transition:opacity .15s}
+.btn-amber{background:var(--amber);color:var(--bg-base)}
+.btn-amber:hover{opacity:.88}
+.btn-ghost{background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-default)}
+.btn-ghost:hover{background:var(--bg-highlight)}
+.btn-danger{background:rgba(239,68,68,.15);color:#f87171;border:1px solid rgba(239,68,68,.25)}
+.btn-danger:hover{background:rgba(239,68,68,.25)}
+.pasteback-out{margin-top:14px;background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:7px;padding:14px;font-family:var(--mono);font-size:11px;color:var(--text-muted);white-space:pre-wrap;min-height:60px;max-height:480px;overflow-y:auto;line-height:1.8;display:none}
+
+/* Decision log panel */
+.decision-panel{border:1px solid var(--border-subtle);border-radius:10px;background:var(--bg-surface);margin-bottom:28px;overflow:hidden}
+.decision-panel-header{padding:13px 20px;border-bottom:1px solid var(--border-subtle);display:flex;align-items:center;justify-content:space-between}
+.decision-panel-header h2{font-size:13px;font-weight:600}
+.captured-count{background:var(--amber);color:var(--bg-base);font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px}
+.decision-actions{display:flex;gap:8px;padding:10px 20px;border-bottom:1px solid var(--border-subtle)}
+.decision-log{padding:12px 20px}
+.log-list{list-style:none}
+.log-empty{color:var(--text-disabled);font-size:12px;font-style:italic}
+.log-entry{padding:7px 10px;border-radius:5px;background:var(--bg-base);border:1px solid var(--border-subtle);margin-bottom:5px;font-size:11px;display:flex;gap:8px;flex-wrap:wrap}
+.log-entry-time{color:var(--amber);font-weight:600;flex-shrink:0}
+.log-entry-q{color:var(--text-muted)}
+.log-entry-action{color:var(--text-primary)}
+
+@media(max-width:680px){
+  .toc{display:none}
+  .main{padding:16px}
+  .pros-cons{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<header class="sticky-header">
+  <h1>Post-Mortem Review Decisions</h1>
+  <div class="progress-wrap">
+    <span class="progress-label">Answered</span>
+    <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+    <span class="progress-pct" id="progress-pct">0%</span>
+  </div>
+</header>
+
+<div class="layout">
+
+<!-- Sidebar TOC -->
+<nav class="toc">
+  <div class="toc-title">Questions</div>
+  <a href="#q1" id="toc-q1"><span class="q-num">Q1</span>How do we classify the severity of...</a>
+  <a href="#q2" id="toc-q2"><span class="q-num">Q2</span>Who owns writing the post-mortem d...</a>
+  <a href="#q3" id="toc-q3"><span class="q-num">Q3</span>Which remediation categories shoul...</a>
+  <a href="#q4" id="toc-q4"><span class="q-num">Q4</span>What is the target timeline for co...</a>
+  <a href="#q5" id="toc-q5"><span class="q-num">Q5</span>Should we send a public status pag...</a>
+  <a href="#q6" id="toc-q6"><span class="q-num">Q6</span>What does the 5-why analysis ident...</a>
+  <a href="#q7" id="toc-q7"><span class="q-num">Q7</span>Any additional context, blockers, ...</a>
+  <div class="toc-sep"></div>
+  <a href="#decisions"><span class="q-num" style="color:var(--text-disabled)">v</span>Captured</a>
+  <a href="#pasteback-section"><span class="q-num" style="color:var(--text-disabled)">p</span>Paste-back</a>
+</nav>
+
+<!-- Main content -->
+<main class="main" data-question-count="7">
+
+  <div class="page-header">
+    <div class="page-tag">Workbook</div>
+    <h1 class="page-title">Post-Mortem Review Decisions</h1>
+    <p class="page-subtitle">Fill out each section, then generate the paste-back at the bottom and copy it into chat.</p>
+  </div>
+
+  
+<section class="question" id="q1">
+  <div class="q-header">
+    <div class="q-num">1</div>
+    <div class="q-meta">
+      <div class="q-title">How do we classify the severity of this incident?</div>
+      <div class="q-tag radio">Single choice</div>
+    </div>
+  </div>
+  <div class="q-body">
+    <div class="teaching"><p>Incident severity determines the scope of the post-mortem process, who needs to be involved, and what level of remediation is required. Over-classifying wastes engineering time on bureaucratic process. Under-classifying misses systemic risk.</p>
+<p>Severity is about business impact and blast radius — not just technical complexity. A 30-second API blip that hit 0 users is lower severity than a 2-minute degradation that silently corrupted 200 records.</p></div>
+    
+    <div class="options-list"><label class="option-item"><input type="radio" name="q1_choice" value="SEV1"><div class="option-label-wrap"><div class="option-dot"></div><div class="option-text"><div class="option-title">SEV-1 — Customer-facing outage or data loss</div><details><summary>Pros / Cons</summary><div class="pros-cons"><div class="pros"><h4>Pros</h4><ul class="pros"><li>Forces full post-mortem with 5-whys</li><li>Escalates to leadership automatically</li><li>Gets remediation SLA (2 weeks)</li></ul></div><div class="cons"><h4>Cons</h4><ul class="cons"><li>Heavy process overhead</li><li>Engineering distraction during recovery</li></ul></div></div></details></div></div></label><label class="option-item recommended"><input type="radio" name="q1_choice" value="SEV2" checked><div class="option-label-wrap"><div class="option-dot"></div><div class="option-text"><div class="option-title">SEV-2 — Significant degradation, no data loss<span class="rec-badge">Recommended</span></div><details><summary>Pros / Cons</summary><div class="pros-cons"><div class="pros"><h4>Pros</h4><ul class="pros"><li>Balanced process: post-mortem required but lighter</li><li>Action items tracked without leadership escalation</li></ul></div><div class="cons"><h4>Cons</h4><ul class="cons"><li>May under-weight systemic issues</li></ul></div></div></details></div></div></label><label class="option-item"><input type="radio" name="q1_choice" value="SEV3"><div class="option-label-wrap"><div class="option-dot"></div><div class="option-text"><div class="option-title">SEV-3 — Minor degradation or near-miss</div><details><summary>Pros / Cons</summary><div class="pros-cons"><div class="pros"><h4>Pros</h4><ul class="pros"><li>Minimal process, fast resolution</li></ul></div><div class="cons"><h4>Cons</h4><ul class="cons"><li>Near-misses often recur if not documented</li><li>No formal remediation tracking</li></ul></div></div></details></div></div></label></div>
+    <div class="notes-block">
+      <label class="field-label" for="q1_notes">Notes / overrides</label>
+      <textarea class="textarea-field" id="q1_notes" name="q1_notes" rows="2" placeholder="Notes, overrides, or context..."></textarea>
+    </div>
+    <div class="askback-block">
+      <label class="field-label askback-label" for="q1_askback">Ask me a question about this <span class="ask-tag">Ask AI Back</span></label>
+      <textarea class="textarea-field ask-back" id="q1_askback" name="q1_askback" rows="2" placeholder="Ask me a clarifying question about this..."></textarea>
+    </div>
+  </div>
+</section>
+
+<section class="question" id="q2">
+  <div class="q-header">
+    <div class="q-num">2</div>
+    <div class="q-meta">
+      <div class="q-title">Who owns writing the post-mortem document?</div>
+      <div class="q-tag radio">Single choice</div>
+    </div>
+  </div>
+  <div class="q-body">
+    <div class="teaching"><p>Post-mortem authorship determines whose mental model of the incident gets preserved. The on-call engineer has the most operational detail but often the least time. A designated writer role produces cleaner docs but risks losing important context through the retelling gap.</p>
+<p>The author is NOT the person who caused the incident. Post-mortems are blameless — the author is the incident coordinator or lead responder.</p></div>
+    
+    <div class="options-list"><label class="option-item"><input type="radio" name="q2_choice" value="oncall"><div class="option-label-wrap"><div class="option-dot"></div><div class="option-text"><div class="option-title">On-call engineer who responded</div><details><summary>Pros / Cons</summary><div class="pros-cons"><div class="pros"><h4>Pros</h4><ul class="pros"><li>Firsthand knowledge of timeline</li><li>No retelling gap</li></ul></div><div class="cons"><h4>Cons</h4><ul class="cons"><li>Usually exhausted post-incident</li><li>May miss systemic context</li></ul></div></div></details></div></div></label><label class="option-item recommended"><input type="radio" name="q2_choice" value="manager" checked><div class="option-label-wrap"><div class="option-dot"></div><div class="option-text"><div class="option-title">Engineering manager of affected team<span class="rec-badge">Recommended</span></div><details><summary>Pros / Cons</summary><div class="pros-cons"><div class="pros"><h4>Pros</h4><ul class="pros"><li>Has cross-team context</li><li>Can identify systemic vs one-off patterns</li></ul></div><div class="cons"><h4>Cons</h4><ul class="cons"><li>Not in the weeds during incident</li></ul></div></div></details></div></div></label><label class="option-item"><input type="radio" name="q2_choice" value="coordinator"><div class="option-label-wrap"><div class="option-dot"></div><div class="option-text"><div class="option-title">Designated post-mortem coordinator (rotation)</div><details><summary>Pros / Cons</summary><div class="pros-cons"><div class="pros"><h4>Pros</h4><ul class="pros"><li>Consistent format across incidents</li><li>No team bias</li></ul></div><div class="cons"><h4>Cons</h4><ul class="cons"><li>Requires coordinator program to exist</li><li>Context loss from non-participants</li></ul></div></div></details></div></div></label></div>
+    <div class="notes-block">
+      <label class="field-label" for="q2_notes">Notes / overrides</label>
+      <textarea class="textarea-field" id="q2_notes" name="q2_notes" rows="2" placeholder="Notes, overrides, or context..."></textarea>
+    </div>
+    <div class="askback-block">
+      <label class="field-label askback-label" for="q2_askback">Ask me a question about this <span class="ask-tag">Ask AI Back</span></label>
+      <textarea class="textarea-field ask-back" id="q2_askback" name="q2_askback" rows="2" placeholder="Ask me a clarifying question about this..."></textarea>
+    </div>
+  </div>
+</section>
+
+<section class="question" id="q3">
+  <div class="q-header">
+    <div class="q-num">3</div>
+    <div class="q-meta">
+      <div class="q-title">Which remediation categories should we track action items under?</div>
+      <div class="q-tag multi">Multi-select</div>
+    </div>
+  </div>
+  <div class="q-body">
+    <div class="teaching"><p>Action items without categories drift into a backlog and never ship. Categorizing remediation items helps route them to the right owners and prioritize them against other work. Not all categories apply to every incident — select what fits this specific case.</p>
+<p>Common pitfall: marking everything as &quot;monitoring improvement&quot; when the real issue was deployment process or capacity planning.</p></div>
+    
+    <div class="checkbox-group"><div class="checkbox-grid"><label class="checkbox-item recommended"><input type="checkbox" name="q3_choice" value="detection" checked><div class="check-box"></div><div class="check-content"><div class="check-label">Detection — improve alerting so we catch this faster<span class="rec-badge">Rec</span></div><details><summary>Pros / Cons</summary><div class="pros-cons"><div class="pros"><h4>Pros</h4><ul class="pros"><li>Directly reduces MTTD (mean time to detect)</li></ul></div><div class="cons"><h4>Cons</h4><ul class="cons"><li>Alert fatigue if overdone</li></ul></div></div></details></div></label><label class="checkbox-item"><input type="checkbox" name="q3_choice" value="mitigation"><div class="check-box"></div><div class="check-content"><div class="check-label">Mitigation — add circuit breakers or fallback paths</div><details><summary>Pros / Cons</summary><div class="pros-cons"><div class="pros"><h4>Pros</h4><ul class="pros"><li>Reduces blast radius of future occurrence</li></ul></div><div class="cons"><h4>Cons</h4><ul class="cons"><li>Adds complexity to the system</li></ul></div></div></details></div></label><label class="checkbox-item"><input type="checkbox" name="q3_choice" value="deploy"><div class="check-box"></div><div class="check-content"><div class="check-label">Deployment process — gate or slow-roll this change type</div><details><summary>Pros / Cons</summary><div class="pros-cons"><div class="pros"><h4>Pros</h4><ul class="pros"><li>Prevents recurrence via process rather than code</li></ul></div><div class="cons"><h4>Cons</h4><ul class="cons"><li>Slows velocity if gates are too broad</li></ul></div></div></details></div></label><label class="checkbox-item"><input type="checkbox" name="q3_choice" value="capacity"><div class="check-box"></div><div class="check-content"><div class="check-label">Capacity planning — pre-provision or add headroom</div><details><summary>Pros / Cons</summary><div class="pros-cons"><div class="pros"><h4>Pros</h4><ul class="pros"><li>Directly addresses resource-based failures</li></ul></div><div class="cons"><h4>Cons</h4><ul class="cons"><li>Costs money without shipping features</li></ul></div></div></details></div></label><label class="checkbox-item"><input type="checkbox" name="q3_choice" value="docs"><div class="check-box"></div><div class="check-content"><div class="check-label">Documentation — update runbooks or escalation paths</div><details><summary>Pros / Cons</summary><div class="pros-cons"><div class="pros"><h4>Pros</h4><ul class="pros"><li>Low cost, high leverage for next responder</li></ul></div><div class="cons"><h4>Cons</h4><ul class="cons"><li>Docs go stale if not maintained</li></ul></div></div></details></div></label></div></div>
+    <div class="notes-block">
+      <label class="field-label" for="q3_notes">Notes / overrides</label>
+      <textarea class="textarea-field" id="q3_notes" name="q3_notes" rows="2" placeholder="Notes, overrides, or context..."></textarea>
+    </div>
+    <div class="askback-block">
+      <label class="field-label askback-label" for="q3_askback">Ask me a question about this <span class="ask-tag">Ask AI Back</span></label>
+      <textarea class="textarea-field ask-back" id="q3_askback" name="q3_askback" rows="2" placeholder="Ask me a clarifying question about this..."></textarea>
+    </div>
+  </div>
+</section>
+
+<section class="question" id="q4">
+  <div class="q-header">
+    <div class="q-num">4</div>
+    <div class="q-meta">
+      <div class="q-title">What is the target timeline for completing all action items?</div>
+      <div class="q-tag radio">Single choice</div>
+    </div>
+  </div>
+  <div class="q-body">
+    <div class="teaching"><p>Without a deadline, post-mortem action items sit in JIRA forever. Too-short deadlines create false urgency and cause half-baked fixes. A 2-4 week window balances speed with thoroughness for most SEV-2 incidents.</p>
+<p>The timeline should be set BEFORE the meeting ends — not retroactively applied. Items not completed by the deadline get escalated automatically.</p></div>
+    
+    <div class="options-list"><label class="option-item"><input type="radio" name="q4_choice" value="1w"><div class="option-label-wrap"><div class="option-dot"></div><div class="option-text"><div class="option-title">1 week — incident is still hot, fix fast</div><details><summary>Pros / Cons</summary><div class="pros-cons"><div class="pros"><h4>Pros</h4><ul class="pros"><li>High urgency signals to team</li></ul></div><div class="cons"><h4>Cons</h4><ul class="cons"><li>Unrealistic for architectural changes</li></ul></div></div></details></div></div></label><label class="option-item recommended"><input type="radio" name="q4_choice" value="2w" checked><div class="option-label-wrap"><div class="option-dot"></div><div class="option-text"><div class="option-title">2 weeks — standard sprint window<span class="rec-badge">Recommended</span></div><details><summary>Pros / Cons</summary><div class="pros-cons"><div class="pros"><h4>Pros</h4><ul class="pros"><li>Fits most sprint cadences</li><li>Balances urgency with realism</li></ul></div><div class="cons"><h4>Cons</h4><ul class="cons"><li>Can conflict with existing sprint commitments</li></ul></div></div></details></div></div></label><label class="option-item"><input type="radio" name="q4_choice" value="4w"><div class="option-label-wrap"><div class="option-dot"></div><div class="option-text"><div class="option-title">4 weeks — complex systemic fix needed</div><details><summary>Pros / Cons</summary><div class="pros-cons"><div class="pros"><h4>Pros</h4><ul class="pros"><li>Allows for proper design and review</li></ul></div><div class="cons"><h4>Cons</h4><ul class="cons"><li>Risk of incident fading from memory</li></ul></div></div></details></div></div></label></div>
+    <div class="notes-block">
+      <label class="field-label" for="q4_notes">Notes / overrides</label>
+      <textarea class="textarea-field" id="q4_notes" name="q4_notes" rows="2" placeholder="Notes, overrides, or context..."></textarea>
+    </div>
+    <div class="askback-block">
+      <label class="field-label askback-label" for="q4_askback">Ask me a question about this <span class="ask-tag">Ask AI Back</span></label>
+      <textarea class="textarea-field ask-back" id="q4_askback" name="q4_askback" rows="2" placeholder="Ask me a clarifying question about this..."></textarea>
+    </div>
+  </div>
+</section>
+
+<section class="question" id="q5">
+  <div class="q-header">
+    <div class="q-num">5</div>
+    <div class="q-meta">
+      <div class="q-title">Should we send a public status page update?</div>
+      <div class="q-tag radio">Single choice</div>
+    </div>
+  </div>
+  <div class="q-body">
+    <div class="teaching"><p>Public communication builds trust if done proactively and accurately. Sending a status update after a user-reported incident is reactive and appears defensive. Not sending one for a visible outage looks like a cover-up.</p>
+<p>The bar: would a customer reading our status page be confused by a gap in the incident timeline? If yes, post an update.</p></div>
+    
+    <div class="options-list"><label class="option-item recommended"><input type="radio" name="q5_choice" value="yes" checked><div class="option-label-wrap"><div class="option-dot"></div><div class="option-text"><div class="option-title">Yes — customers may have noticed degradation<span class="rec-badge">Recommended</span></div><details><summary>Pros / Cons</summary><div class="pros-cons"><div class="pros"><h4>Pros</h4><ul class="pros"><li>Proactive transparency builds trust</li><li>Reduces inbound support volume</li></ul></div><div class="cons"><h4>Cons</h4><ul class="cons"><li>May escalate concern for incidents that resolved quickly</li></ul></div></div></details></div></div></label><label class="option-item"><input type="radio" name="q5_choice" value="no"><div class="option-label-wrap"><div class="option-dot"></div><div class="option-text"><div class="option-title">No — internal only, no customer impact detected</div><details><summary>Pros / Cons</summary><div class="pros-cons"><div class="pros"><h4>Pros</h4><ul class="pros"><li>Avoids unnecessary concern</li></ul></div><div class="cons"><h4>Cons</h4><ul class="cons"><li>If customers DID notice, appears evasive in retrospect</li></ul></div></div></details></div></div></label><label class="option-item"><input type="radio" name="q5_choice" value="check"><div class="option-label-wrap"><div class="option-dot"></div><div class="option-text"><div class="option-title">Uncertain — check support ticket volume first</div><details><summary>Pros / Cons</summary><div class="pros-cons"><div class="pros"><h4>Pros</h4><ul class="pros"><li>Data-driven decision</li></ul></div><div class="cons"><h4>Cons</h4><ul class="cons"><li>Delays comms decision</li></ul></div></div></details></div></div></label></div>
+    <div class="notes-block">
+      <label class="field-label" for="q5_notes">Notes / overrides</label>
+      <textarea class="textarea-field" id="q5_notes" name="q5_notes" rows="2" placeholder="Notes, overrides, or context..."></textarea>
+    </div>
+    <div class="askback-block">
+      <label class="field-label askback-label" for="q5_askback">Ask me a question about this <span class="ask-tag">Ask AI Back</span></label>
+      <textarea class="textarea-field ask-back" id="q5_askback" name="q5_askback" rows="2" placeholder="Ask me a clarifying question about this..."></textarea>
+    </div>
+  </div>
+</section>
+
+<section class="question" id="q6">
+  <div class="q-header">
+    <div class="q-num">6</div>
+    <div class="q-meta">
+      <div class="q-title">What does the 5-why analysis identify as root cause tier?</div>
+      <div class="q-tag radio">Single choice</div>
+    </div>
+  </div>
+  <div class="q-body">
+    <div class="teaching"><p>The 5-why analysis is meant to surface the SYSTEMIC root cause, not stop at the proximate cause. If every post-mortem concludes with &quot;engineer made a mistake,&quot; the 5-why analysis is not going deep enough.</p>
+<p>Root cause tiers: Tier 1 = code bug (proximate). Tier 2 = missing test/review gate. Tier 3 = process gap. Tier 4 = organizational or incentive misalignment. Most actionable post-mortems reach Tier 2 or 3.</p></div>
+    
+    <div class="options-list"><label class="option-item"><input type="radio" name="q6_choice" value="T1"><div class="option-label-wrap"><div class="option-dot"></div><div class="option-text"><div class="option-title">Tier 1 — specific code bug (proximate cause only)</div><details><summary>Pros / Cons</summary><div class="pros-cons"><div class="pros"><h4>Pros</h4><ul class="pros"><li>Straightforward fix</li></ul></div><div class="cons"><h4>Cons</h4><ul class="cons"><li>May recur via a different code path</li></ul></div></div></details></div></div></label><label class="option-item recommended"><input type="radio" name="q6_choice" value="T2" checked><div class="option-label-wrap"><div class="option-dot"></div><div class="option-text"><div class="option-title">Tier 2 — missing test, lint, or review gate<span class="rec-badge">Recommended</span></div><details><summary>Pros / Cons</summary><div class="pros-cons"><div class="pros"><h4>Pros</h4><ul class="pros"><li>Prevents whole class of similar bugs</li><li>Most teams can implement gates quickly</li></ul></div><div class="cons"><h4>Cons</h4><ul class="cons"><li>May slow CI if gates are too broad</li></ul></div></div></details></div></div></label><label class="option-item"><input type="radio" name="q6_choice" value="T3"><div class="option-label-wrap"><div class="option-dot"></div><div class="option-text"><div class="option-title">Tier 3 — process or runbook gap</div><details><summary>Pros / Cons</summary><div class="pros-cons"><div class="pros"><h4>Pros</h4><ul class="pros"><li>Addresses repeating patterns across teams</li></ul></div><div class="cons"><h4>Cons</h4><ul class="cons"><li>Process changes require buy-in to stick</li></ul></div></div></details></div></div></label><label class="option-item"><input type="radio" name="q6_choice" value="T4"><div class="option-label-wrap"><div class="option-dot"></div><div class="option-text"><div class="option-title">Tier 4 — organizational or incentive misalignment</div><details><summary>Pros / Cons</summary><div class="pros-cons"><div class="pros"><h4>Pros</h4><ul class="pros"><li>Highest leverage if addressed</li></ul></div><div class="cons"><h4>Cons</h4><ul class="cons"><li>Requires leadership involvement</li></ul></div></div></details></div></div></label></div>
+    <div class="notes-block">
+      <label class="field-label" for="q6_notes">Notes / overrides</label>
+      <textarea class="textarea-field" id="q6_notes" name="q6_notes" rows="2" placeholder="Notes, overrides, or context..."></textarea>
+    </div>
+    <div class="askback-block">
+      <label class="field-label askback-label" for="q6_askback">Ask me a question about this <span class="ask-tag">Ask AI Back</span></label>
+      <textarea class="textarea-field ask-back" id="q6_askback" name="q6_askback" rows="2" placeholder="Ask me a clarifying question about this..."></textarea>
+    </div>
+  </div>
+</section>
+
+<section class="question" id="q7">
+  <div class="q-header">
+    <div class="q-num">7</div>
+    <div class="q-meta">
+      <div class="q-title">Any additional context, blockers, or open questions?</div>
+      <div class="q-tag open">Open response</div>
+    </div>
+  </div>
+  <div class="q-body">
+    <div class="teaching"><p>This section captures anything not covered by the structured questions above. Common things worth noting: dependencies on other teams, external vendors involved, regulatory considerations, or questions you want the AI to address in the next iteration workbook.</p></div>
+    
+    <textarea class="textarea-field" name="q7_choice" rows="8" placeholder="e.g. &#x27;Action item X depends on the database team being available.&#x27; Or: &#x27;Should we page the CTO for SEV-1 incidents that resolve within 10 minutes?&#x27;"></textarea>
+    <div class="notes-block">
+      <label class="field-label" for="q7_notes">Notes / overrides</label>
+      <textarea class="textarea-field" id="q7_notes" name="q7_notes" rows="2" placeholder="Notes, overrides, or context..."></textarea>
+    </div>
+    <div class="askback-block">
+      <label class="field-label askback-label" for="q7_askback">Ask me a question about this <span class="ask-tag">Ask AI Back</span></label>
+      <textarea class="textarea-field ask-back" id="q7_askback" name="q7_askback" rows="2" placeholder="Ask me a clarifying question about this..."></textarea>
+    </div>
+  </div>
+</section>
+
+  <!-- Decision log panel -->
+  <div class="decision-panel" id="decisions">
+    <div class="decision-panel-header">
+      <h2>Captured Decisions</h2>
+      <span class="captured-count" id="decision-count">0</span>
+    </div>
+    <div class="decision-actions">
+      <button type="button" class="btn btn-ghost" id="gen-pasteback-btn">Generate paste-back</button>
+      <button type="button" class="btn btn-ghost" id="copy-pasteback-btn">Copy to clipboard</button>
+      <button type="button" class="btn btn-danger" id="clear-log-btn">Clear log</button>
+    </div>
+    <div class="decision-log">
+      <ul class="log-list" id="decision-log-list">
+        <li class="log-empty">No decisions captured yet.</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Paste-back output -->
+  <div class="pasteback-section" id="pasteback-section">
+    <div class="pasteback-title">Paste-back</div>
+    <p class="pasteback-sub">Click "Generate paste-back" above to build the markdown summary, then copy and paste it into chat.</p>
+    <div class="pasteback-actions">
+      <button type="button" class="btn btn-amber" id="gen-pasteback-btn2">Generate paste-back</button>
+      <button type="button" class="btn btn-ghost" id="copy-pasteback-btn2">Copy to clipboard</button>
+    </div>
+    <pre class="pasteback-out" id="pasteback-out"></pre>
+  </div>
+
+</main>
+</div>
+
+<script>
+/* Wire secondary paste-back buttons to same handlers */
+document.addEventListener('DOMContentLoaded', function () {
+  var g2 = document.getElementById('gen-pasteback-btn2');
+  if (g2) g2.addEventListener('click', function () {
+    var md = generatePasteback();
+    var out = document.getElementById('pasteback-out');
+    if (out) { out.textContent = md; out.style.display = 'block'; }
+  });
+  var c2 = document.getElementById('copy-pasteback-btn2');
+  if (c2) c2.addEventListener('click', function () {
+    var md = generatePasteback();
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(md).then(function () {
+        c2.textContent = 'Copied!';
+        setTimeout(function () { c2.textContent = 'Copy to clipboard'; }, 1800);
+      });
+    }
+  });
+});
+
+/* Workbook JS — inlined */
+/**
+ * workbook.js - canonical localStorage capture + paste-back JS
+ * Inlined into workbook.html.template at {{WORKBOOK_JS}}
+ * Storage key parameterized by {{STORAGE_KEY}} at render time.
+ */
+
+(function () {
+  var STORAGE_KEY = 'post-mortem-decisions-2026-05-11';
+  var decisions = [];
+
+  /* Load persisted state */
+  try {
+    var stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) decisions = JSON.parse(stored);
+  } catch (e) {}
+
+  function save() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(decisions)); } catch (e) {}
+  }
+
+  function escH(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  /* Capture helper */
+  window.captureDecision = function (questionId, action, value) {
+    decisions.push({
+      captured_at: new Date().toISOString(),
+      question_id: questionId,
+      action: action,
+      value: value
+    });
+    save();
+    renderLog();
+    updateProgress();
+  };
+
+  /* Render log panel using DOM methods (no innerHTML with user content) */
+  function renderLog() {
+    var list = document.getElementById('decision-log-list');
+    var count = document.getElementById('decision-count');
+    if (!list) return;
+    if (count) count.textContent = String(decisions.length);
+
+    /* clear safely */
+    while (list.firstChild) list.removeChild(list.firstChild);
+
+    if (decisions.length === 0) {
+      var empty = document.createElement('li');
+      empty.className = 'log-empty';
+      empty.textContent = 'No decisions captured yet.';
+      list.appendChild(empty);
+      return;
+    }
+
+    var recent = decisions.slice(-12).reverse();
+    recent.forEach(function (d) {
+      var t = d.captured_at ? d.captured_at.slice(11, 19) : '';
+      var val = typeof d.value === 'object' ? JSON.stringify(d.value) : String(d.value || '');
+      if (val.length > 80) val = val.slice(0, 80) + '...';
+
+      var li = document.createElement('li');
+      li.className = 'log-entry';
+
+      var tSpan = document.createElement('span');
+      tSpan.className = 'log-entry-time';
+      tSpan.textContent = t;
+
+      var qSpan = document.createElement('span');
+      qSpan.className = 'log-entry-q';
+      qSpan.textContent = d.question_id + ' ';
+
+      var aSpan = document.createElement('span');
+      aSpan.className = 'log-entry-action';
+      aSpan.textContent = d.action + ': ' + val;
+
+      li.appendChild(tSpan);
+      li.appendChild(qSpan);
+      li.appendChild(aSpan);
+      list.appendChild(li);
+    });
+  }
+
+  /* Progress meter */
+  window.updateProgress = function () {
+    var countEl = document.querySelector('[data-question-count]');
+    var total = countEl ? parseInt(countEl.getAttribute('data-question-count'), 10) : 0;
+    if (!total) return;
+    var answered = new Set(decisions.map(function (d) { return d.question_id; })).size;
+    var pct = Math.round((answered / total) * 100);
+    var fill = document.getElementById('progress-fill');
+    var pctEl = document.getElementById('progress-pct');
+    var progCount = document.getElementById('progress-count');
+    if (fill) fill.style.width = pct + '%';
+    if (pctEl) pctEl.textContent = pct + '%';
+    if (progCount) progCount.textContent = answered + ' of ' + total;
+    /* mark TOC links done */
+    var answered_ids = new Set(decisions.map(function (d) { return d.question_id; }));
+    answered_ids.forEach(function (qid) {
+      var link = document.getElementById('toc-' + qid);
+      if (link) link.classList.add('done');
+    });
+  };
+
+  /* Generate paste-back markdown */
+  window.generatePasteback = function () {
+    var title = document.title || 'Workbook';
+    var ts = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    var lines = [
+      '## ' + title + ' - Decisions ' + ts,
+      '',
+      '| Time | Question | Action | Value |',
+      '|---|---|---|---|'
+    ];
+    decisions.forEach(function (d) {
+      var t = d.captured_at ? d.captured_at.slice(11, 19) : '';
+      var val = typeof d.value === 'object' ? JSON.stringify(d.value) : String(d.value || '');
+      lines.push('| ' + t + ' | ' + d.question_id + ' | ' + d.action + ' | `' + val.replace(/\|/g, '\\|') + '` |');
+    });
+
+    /* collect ask-back textareas */
+    var askbacks = document.querySelectorAll('[name$="_askback"]');
+    var hasAskback = false;
+    askbacks.forEach(function (ta) { if (ta.value.trim()) hasAskback = true; });
+    if (hasAskback) {
+      lines.push('', '### Ask-back questions', '');
+      askbacks.forEach(function (ta) {
+        if (ta.value.trim()) {
+          lines.push('**' + ta.name.replace('_askback', '') + ':** ' + ta.value.trim());
+        }
+      });
+    }
+
+    /* collect notes textareas */
+    var notesEls = document.querySelectorAll('[name$="_notes"]');
+    var hasNotes = false;
+    notesEls.forEach(function (ta) { if (ta.value.trim()) hasNotes = true; });
+    if (hasNotes) {
+      lines.push('', '### Notes', '');
+      notesEls.forEach(function (ta) {
+        if (ta.value.trim()) {
+          lines.push('**' + ta.name.replace('_notes', '') + ':** ' + ta.value.trim());
+        }
+      });
+    }
+    return lines.join('\n');
+  };
+
+  /* Clear log */
+  window.clearLog = function () {
+    decisions = [];
+    save();
+    renderLog();
+    updateProgress();
+    var out = document.getElementById('pasteback-out');
+    if (out) { out.style.display = 'none'; out.textContent = ''; }
+  };
+
+  /* Wire buttons and inputs on DOMContentLoaded */
+  document.addEventListener('DOMContentLoaded', function () {
+    renderLog();
+    updateProgress();
+
+    var genBtn = document.getElementById('gen-pasteback-btn');
+    if (genBtn) {
+      genBtn.addEventListener('click', function () {
+        var md = generatePasteback();
+        var out = document.getElementById('pasteback-out');
+        if (out) { out.textContent = md; out.style.display = 'block'; }
+      });
+    }
+
+    var copyBtn = document.getElementById('copy-pasteback-btn');
+    if (copyBtn) {
+      copyBtn.addEventListener('click', function () {
+        var md = generatePasteback();
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(md).then(function () {
+            copyBtn.textContent = 'Copied!';
+            setTimeout(function () { copyBtn.textContent = 'Copy to clipboard'; }, 1800);
+          });
+        } else {
+          var ta = document.createElement('textarea');
+          ta.value = md;
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand('copy');
+          document.body.removeChild(ta);
+          copyBtn.textContent = 'Copied!';
+          setTimeout(function () { copyBtn.textContent = 'Copy to clipboard'; }, 1800);
+        }
+      });
+    }
+
+    var clearBtn = document.getElementById('clear-log-btn');
+    if (clearBtn) {
+      clearBtn.addEventListener('click', function () { clearLog(); });
+    }
+
+    /* Intercept all form submits */
+    document.querySelectorAll('form').forEach(function (form) {
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var btn = form.querySelector('button[type="submit"]');
+        if (btn) {
+          var orig = btn.textContent;
+          btn.textContent = 'saved';
+          btn.disabled = true;
+          btn.style.opacity = '0.6';
+          setTimeout(function () {
+            btn.textContent = orig;
+            btn.disabled = false;
+            btn.style.opacity = '';
+          }, 1500);
+        }
+      });
+    });
+
+    /* Defensive type="button" on bare action buttons */
+    document.querySelectorAll('.action-row button, .card-actions button').forEach(function (btn) {
+      if (!btn.hasAttribute('type')) btn.setAttribute('type', 'button');
+    });
+
+    /* Auto-capture radio changes */
+    document.querySelectorAll('input[type=radio]').forEach(function (r) {
+      r.addEventListener('change', function () {
+        var sec = r.closest('section');
+        var qid = sec ? sec.id : (r.name || 'unknown');
+        captureDecision(qid, 'radio:' + r.name, r.value);
+        document.querySelectorAll('input[name="' + r.name + '"]').forEach(function (peer) {
+          var item = peer.closest('.option-item, .option');
+          if (item) item.classList.toggle('checked', peer.checked);
+        });
+      });
+      if (r.checked) {
+        var item = r.closest('.option-item, .option');
+        if (item) item.classList.add('checked');
+      }
+    });
+
+    /* Auto-capture checkbox changes */
+    document.querySelectorAll('input[type=checkbox]').forEach(function (c) {
+      c.addEventListener('change', function () {
+        var sec = c.closest('section');
+        var qid = sec ? sec.id : (c.name || 'unknown');
+        captureDecision(qid, 'checkbox:' + c.name, { value: c.value, checked: c.checked });
+        var item = c.closest('.checkbox-item, .option');
+        if (item) item.classList.toggle('checked', c.checked);
+      });
+      if (c.checked) {
+        var item = c.closest('.checkbox-item, .option');
+        if (item) item.classList.add('checked');
+      }
+    });
+
+    /* Auto-capture textarea blur */
+    document.querySelectorAll('textarea').forEach(function (ta) {
+      ta.addEventListener('blur', function () {
+        if (!ta.value.trim()) return;
+        var sec = ta.closest('section');
+        var qid = sec ? sec.id : (ta.name || 'unknown');
+        var action = ta.name && ta.name.endsWith('_askback') ? 'ask-back' : 'notes';
+        captureDecision(qid, action + ':' + ta.name, ta.value.trim());
+      });
+    });
+
+    /* Sticky TOC active link via IntersectionObserver */
+    var sections = document.querySelectorAll('section.question');
+    if (sections.length && window.IntersectionObserver) {
+      var observer = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+          if (entry.isIntersecting) {
+            document.querySelectorAll('.toc a, .toc-link').forEach(function (a) {
+              a.classList.remove('active');
+            });
+            var link = document.querySelector(
+              '.toc a[href="#' + entry.target.id + '"], .toc-link[href="#' + entry.target.id + '"]'
+            );
+            if (link) link.classList.add('active');
+          }
+        });
+      }, { rootMargin: '-20% 0px -70% 0px' });
+      sections.forEach(function (s) { observer.observe(s); });
+    }
+  });
+})();
+
+</script>
+</body>
+</html>
