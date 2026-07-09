@@ -21,8 +21,8 @@ at the prompt, by asking a leading question of a model that reads leading
 questions as instructions. You can't neutrally evaluate code through a lens that's
 already tinted.
 
-So neutral-audit removes the lens. It spawns an agent with one job: observe and
-report — not find problems, not confirm correctness. Read the code component by
+So neutral-audit removes the lens. Its isolated audit context has one job:
+observe and report — not find problems, not confirm correctness. Read the code component by
 component, say what each part does and how, note what genuinely stands out, and
 if something *could* be an issue, report it as an observation ("this could break
 if X") rather than a finding ("this is a bug"). If nothing stands out, say so

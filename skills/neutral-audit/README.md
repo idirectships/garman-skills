@@ -28,7 +28,7 @@ Triggers on: `what does this code do`, `explain this file`, `how does this work`
 
 ## Files
 
-- `SKILL.md` — 4-step protocol with neutral subagent prompt template
+- `SKILL.md` — 4-step protocol with a neutral direct-audit frame
 
 ## Pairs with
 
