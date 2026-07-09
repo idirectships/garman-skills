@@ -32,7 +32,8 @@ Triggers on: `what does this code do`, `explain this file`, `how does this work`
 
 ## Pairs with
 
-`bug-hunt` — run neutral-audit to understand first, then bug-hunt to investigate.
+A dedicated defect-finding workflow — run neutral-audit to understand first,
+then investigate in a separate adversarial pass.
 
 ## Config
 

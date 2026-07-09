@@ -32,8 +32,8 @@ whole point. There's no quota to fill and no premise to satisfy.
 What you get back is a description of what's actually there instead of a
 projection of what the prompt implied should be there. That turns out to be the
 right *first* move: understand the code cold, then decide whether it's worth
-hunting. We use it before bug-hunt (observe, then argue), after context
-compaction (re-ground in what the code does before touching it), and any time
+hunting. We use it before a dedicated defect-finding pass (observe, then argue),
+after context compaction (re-ground in what the code does before touching it), and any time
 "what does this even do?" matters more than "what's wrong with it?"
 
 The lesson was small and permanent: if you want to know what code does, don't ask

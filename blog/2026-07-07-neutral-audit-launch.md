@@ -74,7 +74,8 @@ first. `refund.ts` assumes the original charge exists; it does not re-validate."
 
 **Triage.** Nothing is dressed up as a bug. But two observations are flagged for
 follow-up: the refund assumption, and a config value read without a default. The
-audit ends with: "2 observations flagged. Want me to run bug-hunt on `refund.ts`?"
+audit ends with: "2 observations flagged. Want a dedicated defect-finding pass
+on `refund.ts`?"
 
 You now *understand the module* — and you have a precise, honest starting point
 for a real investigation, instead of a pile of invented concerns to clear first.
@@ -84,14 +85,14 @@ for a real investigation, instead of a pile of invented concerns to clear first.
 Reach for neutral-audit when comprehension comes before judgment:
 
 - Orienting to an unfamiliar file, directory, or component before you change it.
-- The step *before* bug-hunt — observe the code cold, then decide whether it's
-  worth the adversarial pass.
+- The step *before* a defect-finding pass — observe the code cold, then decide
+  whether it's worth the adversarial pass.
 - Re-grounding after a long session or context compaction, when the agent needs
   to re-learn what the code actually does before continuing.
 
 Skip it when you already have a specific symptom to chase — reach for a focused
-debugger. And when you *want* an adversarial hunt for real bugs, run bug-hunt;
-neutral-audit is the map, not the sweep.
+an adversarial defect finder. And when you *want* a hunt for real bugs, use that
+dedicated workflow; neutral-audit is the map, not the sweep.
 
 ## Try It
 
