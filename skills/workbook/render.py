@@ -12,6 +12,7 @@ Dependencies: pyyaml (pip3 install pyyaml)
 import argparse
 import datetime
 import html
+import json
 import pathlib
 import subprocess
 import sys
@@ -35,6 +36,16 @@ def paragraphs(text):
     """Convert double-newline-separated text into <p> blocks."""
     parts = [p.strip() for p in str(text).split("\n\n") if p.strip()]
     return "\n".join("<p>" + html.escape(p) + "</p>" for p in parts)
+
+
+def javascript_string(value):
+    """Serialize a string for an inline script without allowing HTML tag breaks."""
+    return (
+        json.dumps(value)
+        .replace("<", "\\u003c")
+        .replace(">", "\\u003e")
+        .replace("&", "\\u0026")
+    )
 
 
 def render_pros_cons(option):
@@ -235,7 +246,7 @@ def main():
     questions_html = "\n".join(render_question(i + 1, q) for i, q in enumerate(questions))
     toc_html = render_toc(questions)
 
-    js_rendered = js.replace("'{{STORAGE_KEY}}'", "'" + storage_key + "'")
+    js_rendered = js.replace("'{{STORAGE_KEY}}'", javascript_string(storage_key))
 
     output_html = (
         template
