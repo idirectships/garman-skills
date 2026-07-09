@@ -4,23 +4,24 @@ Operational Claude skills from Garman Unified Systems. Each published skill ship
 
 ## Current Inventory
 
-- **Local custom library:** 88 top-level custom skills in `~/.claude/skills/`, excluding archived, draft, and system folders.
-- **Public publishing cascade:** 9 open scrubbed skill PRs, plus 1 open origin-story/content PR.
-- **PR-backed launch set:** 9 skills currently have public scrubbed branches and open PRs.
+- **Published packages:** Skills present on `main` are public and installable from this repository.
+- **Incoming packages:** Skills linked to open pull requests remain candidates until they merge.
+- **Local custom library:** `~/.claude/skills/` is the private working library, not the public publication source.
 
-`main` is intentionally sparse while the scrubbed cascade is reviewed. The current checkout's `origin/main` contains only repo scaffolding; the open skill PRs are the source of truth for the incoming public packages.
+`main` is the source of truth for published packages. Pull requests are the
+review surface for incoming packages; an open branch is not a published skill.
 
 ## PR-Backed Public Skills
 
 | Skill | Status |
 |---|---|
-| [`test-driven-development`](https://github.com/idirectships/garman-skills/pull/1) | Scrubbed skill PR open |
+| [`test-driven-development`](skills/test-driven-development/) | Published on `main` |
 | [`bug-hunt`](https://github.com/idirectships/garman-skills/pull/2) | Scrubbed skill PR open; origin-story PR open |
-| [`neutral-audit`](https://github.com/idirectships/garman-skills/pull/3) | Scrubbed skill PR open |
+| [`neutral-audit`](skills/neutral-audit/) | Published on `main` |
 | [`hook-developer`](https://github.com/idirectships/garman-skills/pull/4) | Scrubbed skill PR open |
 | [`mutation-testing`](https://github.com/idirectships/garman-skills/pull/5) | Scrubbed skill PR open |
 | [`merge-pr-stack`](https://github.com/idirectships/garman-skills/pull/7) | Scrubbed skill PR open |
-| [`workbook`](https://github.com/idirectships/garman-skills/pull/8) | Scrubbed skill PR open |
+| [`workbook`](skills/workbook/) | Published on `main` |
 | [`describe_pr`](https://github.com/idirectships/garman-skills/pull/9) | Scrubbed skill PR open |
 | [`fix-ci`](https://github.com/idirectships/garman-skills/pull/10) | Scrubbed skill PR open |
 
@@ -42,7 +43,7 @@ Most public Claude skill collections are prompt libraries: useful reminders, reu
 
 ## Publishing Status
 
-The first-wave PRs for `workbook`, `test-driven-development`, and
-`neutral-audit` include their origin stories and launch posts. Remaining skills
-stay gated on the same story/SEO/AEO and publish review. This README documents
-the cascade; it does not publish, merge, or certify any PR.
+The first wave—`workbook`, `test-driven-development`, and `neutral-audit`—is
+published with origin stories and launch posts. Remaining skills stay gated on
+the same story, SEO/AEO, and independent publish review. This README reports
+repository state; it does not certify an unmerged pull request.
