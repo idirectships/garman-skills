@@ -6,11 +6,11 @@ Operational Claude skills from Garman Unified Systems. Each published skill ship
 
 - **Local custom library:** 88 top-level custom skills in `~/.claude/skills/`, excluding archived, draft, and system folders.
 - **Public publishing cascade:** 9 open scrubbed skill PRs, plus 1 open origin-story/content PR.
-- **Public-bound launch set:** 10 skills selected for publication when the `skeptic-panel` repo-state discrepancy is resolved.
+- **PR-backed launch set:** 9 skills currently have public scrubbed branches and open PRs.
 
 `main` is intentionally sparse while the scrubbed cascade is reviewed. The current checkout's `origin/main` contains only repo scaffolding; the open skill PRs are the source of truth for the incoming public packages.
 
-## Public-Bound Skills
+## PR-Backed Public Skills
 
 | Skill | Status |
 |---|---|
@@ -23,7 +23,9 @@ Operational Claude skills from Garman Unified Systems. Each published skill ship
 | [`workbook`](https://github.com/idirectships/garman-skills/pull/8) | Scrubbed skill PR open |
 | [`describe_pr`](https://github.com/idirectships/garman-skills/pull/9) | Scrubbed skill PR open |
 | [`fix-ci`](https://github.com/idirectships/garman-skills/pull/10) | Scrubbed skill PR open |
-| `skeptic-panel` | Public-bound skill in the local library; not present on this checkout's `origin/main` yet |
+
+`skeptic-panel` remains a local-library candidate. It is not part of the public
+launch set until a scrubbed public branch and PR exist.
 
 ## What Makes These Different
 
@@ -40,4 +42,7 @@ Most public Claude skill collections are prompt libraries: useful reminders, reu
 
 ## Publishing Status
 
-The scrubbed skill PRs are awaiting story/SEO/AEO completion and Director publish approval before merge or public launch. This README documents the cascade; it does not publish, merge, or certify any PR.
+The first-wave PRs for `workbook`, `test-driven-development`, and
+`neutral-audit` include their origin stories and launch posts. Remaining skills
+stay gated on the same story/SEO/AEO and publish review. This README documents
+the cascade; it does not publish, merge, or certify any PR.
